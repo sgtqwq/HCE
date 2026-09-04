@@ -1,3 +1,4 @@
+
 #include "search.h"
 #include "movegen.h"
 #include "bitboard.h"
@@ -30,6 +31,10 @@ namespace {
 	
 	inline i32 history_bonus(i32 depth) {
 		return std::min(depth * depth * 16, HISTORY_MAX);
+	}
+	
+	inline i32 move_index(const Move& m) {
+		return static_cast<i32>(m.from) | (static_cast<i32>(m.to) << 6);
 	}
 	
 	struct ReductionTable {
@@ -362,10 +367,10 @@ void clear_tt() {
 	std::memset(history_table, 0, sizeof(history_table));
 }
 
-Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
+Move search(Position& pos, i32 max_depth, i64 soft_time_ms, i64 hard_time_ms, u64& total_nodes,
 	const u64* history, i32 history_size) {
 		const TimePoint start = Clock::now();
-		const TimePoint deadline = start + std::chrono::milliseconds(max_time_ms);
+		const TimePoint deadline = start + std::chrono::milliseconds(hard_time_ms);
 		total_nodes = 0;
 		Move best_move = NullMove;
 		const u64 root_key = pos.key();
@@ -374,6 +379,12 @@ Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
 		const i32 num_moves = generate_moves(pos, movelist, MoveGenType::All);
 		
 		i32 prev_score = 0;
+		
+		// Nodes spent on each root move (from|to encoded), used to scale the soft
+		// time limit based on how "settled" the current best move is (c4ke style).
+		static thread_local u64 nodes_table[4096];
+		std::memset(nodes_table, 0, sizeof(nodes_table));
+		const bool use_soft_limit = soft_time_ms < hard_time_ms;
 		
 		for (i32 depth = 1; depth <= max_depth; ++depth) {
 			Move root_tt_move = NullMove;
@@ -421,6 +432,8 @@ Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
 					const bool pushed = stack_size < MAX_HISTORY;
 					if (pushed) position_stack[stack_size++] = child_key;
 					
+					const u64 nodes_before_move = nodes;
+					
 					// The root is always a PV node: reduced/null-window searches are
 					// only used for late quiet moves, and any move that raises alpha
 					// is re-searched with the full window.
@@ -458,6 +471,8 @@ Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
 					
 					if (pushed) --stack_size;
 					if (stopped) break;
+					
+					nodes_table[move_index(movelist[i])] += nodes - nodes_before_move;
 					
 					if (score > best_score) {
 						best_score = score;
@@ -506,6 +521,18 @@ Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
 			
 			if (Clock::now() >= deadline) break;
 			if (best_score >= MATE_SCORE - 100 || best_score <= -MATE_SCORE + 100) break;
+			
+			if (use_soft_limit) {
+				const i32 idx = move_index(best_move);
+				const double frac = total_nodes > 0
+				? static_cast<double>(nodes_table[idx]) / static_cast<double>(total_nodes)
+				: 0.0;
+				const double factor = 2.0 - 1.5 * frac;
+				const i64 elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+					Clock::now() - start).count();
+				if (static_cast<double>(elapsed) > static_cast<double>(soft_time_ms) * factor)
+					break;
+			}
 		}
 		
 		return best_move;
