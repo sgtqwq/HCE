@@ -12,7 +12,8 @@ void resize_tt(std::size_t mib);
 void clear_tt();
 
 i32 evaluate(const Position& pos);
-Move search(Position& pos, i32 max_depth, i64 max_time_ms, u64& total_nodes,
+
+Move search(Position& pos, i32 max_depth, i64 soft_time_ms, i64 hard_time_ms, u64& total_nodes,
 	const u64* history, i32 history_size);
 
 #endif // SEARCH_H

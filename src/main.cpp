@@ -1,3 +1,4 @@
+
 #include "types.h"
 #include "bitboard.h"
 #include "position.h"
@@ -147,19 +148,31 @@ namespace {
 		}
 		
 		const i32 max_depth = depth > 0 ? depth : 64;
-		i64 max_time_ms;
+		constexpr i64 INFINITE_TIME = static_cast<i64>(1) << 40;
+		
+		i64 soft_time_ms;
+		i64 hard_time_ms;
+		
+		const i64 my_time = pos.flipped ? btime : wtime;
+		const i64 my_inc  = pos.flipped ? binc  : winc;
+		
 		if (movetime > 0) {
-			max_time_ms = movetime;
-		} else if (depth > 0) {
-			max_time_ms = static_cast<i64>(1) << 40;
+			soft_time_ms = movetime;
+			hard_time_ms = movetime;
+		} else if (my_time < 0) {
+			soft_time_ms = INFINITE_TIME;
+			hard_time_ms = INFINITE_TIME;
 		} else {
-			const i64 my_time = pos.flipped ? btime : wtime;
-			const i64 my_inc  = pos.flipped ? binc  : winc;
-			max_time_ms = my_time / 25 + my_inc / 2;
+			const double time = static_cast<double>(std::max<i64>(my_time, 0));
+			const double inc = static_cast<double>(std::max<i64>(my_inc, 0));
+			
+			hard_time_ms = std::max<i64>(1, static_cast<i64>(0.4 * time + 0.7 * inc));
+			soft_time_ms = std::max<i64>(1, static_cast<i64>(0.04 * time + 0.5 * inc));
+			if (soft_time_ms > hard_time_ms) soft_time_ms = hard_time_ms;
 		}
 		
 		u64 nodes = 0;
-		const Move best = search(pos, max_depth, max_time_ms, nodes, g_history, g_history_size);
+		const Move best = search(pos, max_depth, soft_time_ms, hard_time_ms, nodes, g_history, g_history_size);
 		std::cout << "bestmove " << move_to_string(best, pos.flipped) << '\n';
 	}
 	
@@ -180,7 +193,7 @@ namespace {
 			clear_tt();
 			u64 nodes = 0;
 			i64 max_time_ms = static_cast<i64>(1) << 40;
-			Move best = search(pos, bench_depth, max_time_ms, nodes, nullptr, 0);
+			Move best = search(pos, bench_depth, max_time_ms, max_time_ms, nodes, nullptr, 0);
 			total_nodes += nodes;
 		}
 		
@@ -256,4 +269,3 @@ int main(int argc, char* argv[]) {
 	
 	return 0;
 }
-
