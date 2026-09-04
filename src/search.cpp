@@ -32,7 +32,6 @@ namespace {
 		return std::min(depth * depth * 16, HISTORY_MAX);
 	}
 	
-	// Precomputed late move reduction table: R = 0.8 + ln(depth) * ln(moveCount) * 0.4
 	struct ReductionTable {
 		i32 data[MAX_DEPTH + 1][256];
 		ReductionTable() {
