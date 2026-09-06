@@ -232,14 +232,14 @@ namespace {
 			Move tt_move = NullMove;
 			
 			i32 tt_score = 0;
-			if (depth > 0 && tt_cutoff(pos_key, depth, ply, alpha, beta, tt_move, tt_score))
+			if (!pv_node && depth > 0 && tt_cutoff(pos_key, depth, ply, alpha, beta, tt_move, tt_score))
 				return tt_score;
 			
 			const bool check = in_check(pos);
 			if (check && depth < MAX_DEPTH) ++depth;
 			if (depth == 0) return quiescence(pos, alpha, beta, nodes, deadline, stopped);
 			
-			if (original_depth == 0 &&
+			if (!pv_node && original_depth == 0 &&
 				tt_cutoff(pos_key, depth, ply, alpha, beta, tt_move, tt_score))
 				return tt_score;
 			
