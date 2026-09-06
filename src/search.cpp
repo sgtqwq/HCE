@@ -289,7 +289,7 @@ namespace {
 				
 				if (depth >= 3 && move_count > 2 && quiet) {
 					i32 r = base_reduction(depth, move_count);
-//					r -= history_table[stm][movelist[i].from][movelist[i].to] / 8870;
+					r -= history_table[stm][movelist[i].from][movelist[i].to] / 8870;
 					r = std::max(0, r);
 					new_depth = std::max(1, full_depth - r);
 					did_lmr = new_depth < full_depth;
@@ -444,7 +444,7 @@ Move search(Position& pos, i32 max_depth, i64 soft_time_ms, i64 hard_time_ms, u6
 					
 					if (depth >= 3 && move_count > 3 && quiet) {
 						i32 r = base_reduction(depth, move_count);
-//						r -= history_table[stm][movelist[i].from][movelist[i].to] / 8870;
+						r -= history_table[stm][movelist[i].from][movelist[i].to] / 8870;
 						r = std::max(0, r);
 						new_depth = std::max(1, full_depth - r);
 						did_lmr = new_depth < full_depth;
